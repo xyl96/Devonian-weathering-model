@@ -1,0 +1,220 @@
+% draft code to demonstrate destruction-regeneration idea.
+
+clear;clc;
+
+% time 
+t_tol = 1e6;
+% regenerat ion rate, how many times per 1myr
+n = 10; % frequency of the destruction-regeneration
+t_res = t_tol/n;
+
+% parameters
+kp = 2.5;
+kw = 7.6e-5;
+K = 5e-6 * 120 * 4e6 * 6;
+Kcl = 5e-8 * 2000 * 4e6 * 6;
+Kcarb = 5e-6 * 10 * 1e6; 
+Ea = 45.3 * 1000; %j/mol
+Eac = 65 * 1000;
+sig = -0.11; %sig + 1 = 0.89
+sig2 = 0.13;
+R = 8.314; % j/mol*K
+T0 = 293;
+k_Li = 3859636364.17397 ./ (((100)./1000).^(-0.4) * (1/(0.001^(-0.4)))); % Carretier 2020
+R_rock = 2;
+
+% Denudation
+k_Denudation = 0.725;
+D = 0.06 * 2500 * k_Denudation;
+
+% degassing rate
+k_degas = 1.47;
+
+% temp and precipitation
+T = 295; % average in late Devonian, K
+q = 1 * (1 + 0.038 *(T - 287)); % from Probst and Tardy, 1989
+
+% fractionation factor
+alpha = 1.8 * 1e6./(T.^2);
+alpha2 = 1.8 * 1e6./(T.^2);
+
+% soil generation speed, in year, based on Norton 2014
+a0 = 0.42; % Norton 2014
+Ea_soil = 77000; 
+a = 3;
+T0_soil = 278;
+h0 = 1 ./a;
+SPR_max = a0 * q * 1000 * exp((-Ea_soil./R).*(1./T - 1./T0_soil))/1e6;
+%SPR_max = 3.7e-4;
+
+% preallocate memeory
+h = zeros(t_res,1);
+Fr = zeros(t_res,1);
+Rr = zeros(t_res,1);
+P = zeros(t_res,1);
+z = zeros(t_res,1); 
+Rc = zeros(t_res,1);
+Rccl = zeros(t_res,1);
+Inten  = zeros(t_res,1);
+W  = zeros(t_res,1);
+Wcl  = zeros(t_res,1);
+f  = zeros(t_res,1);
+Fr_dis  = zeros(t_res,1);
+Fr_p = zeros(t_res,1);
+Fr_cl  = zeros(t_res,1);
+Rr_r  = zeros(t_res,1);
+Rr_b  = zeros(t_res,1);
+Rcl  = zeros(t_res,1);
+Rr_p  = zeros(t_res,1);
+h_td = zeros(t_res,1);
+h(1) = 0.001/2.5;   
+
+for i = 1: t_res
+ 
+if h(i) < 0.6 * h0
+    SPR(i) = 0.9 * SPR_max * h(i) ./ h0; %m
+else
+    SPR(i) = SPR_max * exp(-a * h(i));
+end
+
+%h_inc = [h(1) SPR];
+
+td(i) = ((i)./1000).^(-0.4) * (1/(0.001^(-0.4)));%+1
+%tdx(i) = ((i+1)./1000).^(-0.4) * (1/(0.001^(-0.4)));
+%h_td(i) = sum(flip(h_inc) .* [1 tdx]);
+h(i+1) = SPR(i) + h(i);
+end
+
+
+for i = 1:t_res
+% Li riverine influx by year
+z(i) = 2.500 * h(i);
+Rc(i) = 1 - exp(-K  * kp * (1 - exp(-kw * q)) * exp(...
+        Ea ./ (R * T0) - Ea ./ (R * T)) * ((z(i) ./ D).^(sig + 1) ./ (sig + 1))); % prim silicate
+Rccl(i) = 1 - exp(-Kcl  * kp * (1 - exp(-kw * q)) * exp(...
+        Ea ./ (R * T0) - Ea ./ (R * T)) * ((z(i) ./ D).^(sig2 + 1) ./ (sig2 + 1))); %clay
+Inten(i) = Rc(i);
+f(i) = 0.05 .* (Inten(i).^-0.45);
+if f(i) > 1
+   f(i) = 1;
+end
+
+kpp(i) = 4 * 4 * td(i)./(((100)./1000).^(-0.4) * (1/(0.001^(-0.4))));
+
+Rc_inc(i) = 1 - exp(-K * kpp(i) * (1 - exp(-kw * q)) * exp(...
+        Ea ./ (R * T0) - Ea ./ (R * T)) * ((2.5 * h(i) .* td(i)./ D).^(sig + 1) ./ (sig + 1))); % prim silicate
+Rccl_inc(i) = 1 - exp(-Kcl * kpp(i) * (1 - exp(-kw * q)) * exp(...
+        Ea ./ (R * T0) - Ea ./ (R * T)) * ((2.5 * h(i) .* td(i)./ D).^(sig + 1) ./ (sig + 1))); % prim silicate
+    
+    
+W(i) = D * Rc(i); % primary rocks weathering rate,* h_td(i)/h(i)
+Wcl(i) = D .* Rccl(i); % dissolution from secondary minerals;,* h_td(i)/h(i)
+Fr_dis(i) = W(i) .* k_Li; %scale withc onstant k_Li
+Fr_p(i) = Fr_dis(i) .* f(i); % fit the Li flux with Dellinger 2015, weathering rate of Li after removal
+Fr_cl(i) = Wcl(i) .* k_Li; % do not consider minerals precipitation from secondary mineral dissolution
+Fr(i) = Fr_p(i) + Fr_cl(i); % riverine Li flux
+Rr_r(i) = R_rock - alpha .* log(f(i)); % fluid d7Li evolved following Rayleigh;
+Rr_b(i) = R_rock + alpha2 .* (1-f(i)); % fluid d7Li evolve following Batch;
+Rcl(i) = R_rock - 2 - 10 * Inten(i); % seconday mineral d7Li, from Dellinger 2017
+Rr_p(i) = Rr_r(i) .* (1 - Inten(i)) + Rr_b(i) .* Inten(i); % high intensity follow batch, low intensity follow rayleigh
+Rr(i) = Rcl(i) .* Fr_cl(i) ./(Fr_p(i) + Fr_cl(i)) +...
+    Rr_p(i) .* Fr_p(i) ./(Fr_p(i) + Fr_cl(i)); % mixing between pri and sec mineral
+
+W(i) = D * Rc_inc(i); % primary rocks weathering rate,* h_td(i)/h(i)
+Wcl(i) = D .* Rccl_inc(i); % dissolution from secondary minerals;,* h_td(i)/h(i)
+Fr_dis(i) = W(i) .* k_Li; %scale withc onstant k_Li
+Fr_p(i) = Fr_dis(i) .* f(i); % fit the Li flux with Dellinger 2015, weathering rate of Li after removal
+Fr_cl(i) = Wcl(i) .* k_Li; % do not consider minerals precipitation from secondary mineral dissolution
+Fr(i) = Fr_p(i) + Fr_cl(i); % riverine Li flux
+
+if i > 1
+
+end
+h(i+1) = SPR(i) + h(i);
+end
+
+Fr_avg = mean(Fr);
+Rr_avg = sum(Fr .* Rr) ./ sum(Fr);
+
+figure;
+semilogx(Rr,'linewidth',1.5);
+hold on;
+xlabel('Time (yr)');
+ylabel('Riverine \delta^{7}Li (‰)');
+set(gca,'linewidth',1.2,'FontSize',12);
+set(gcf, 'Position',  [100, 100, 560, 180]);
+xlim([1 1e7]);
+hold off;
+figure;
+loglog(linspace(1,t_res,t_res),Fr,'r','linewidth',1.5);
+hold on;
+xlabel('Time (yr)');
+ylabel('Fluxes (mol/y)');
+set(gca,'linewidth',1.2,'FontSize',12);
+set(gcf, 'Position',  [100, 100, 560, 180]);
+xlim([1 1e7]);
+hold off;
+
+Fr_my = repmat(Fr,10*n,1);
+Rr_my = repmat(Rr,10*n,1);
+Den_real = h(end) * n;
+Den_my = D*1e6/(2500*1000);
+% dynamic model in late D
+N(1) = 4e16;
+Rsw(1) = 20;
+k = (1e10+(5.2e9 + 6e9)) ./ N(1);
+for i = 1:1e7
+    Rh = 7.3;
+    Fh = k_degas * 5.2e9;
+    Fs = k_degas * 6e9;
+    sink(i) = k * N(i);
+    Ds = 5;
+    N(i+1) =  (Fr_my(i) + Fh + Fs  - sink(i)) + N(i);
+    Rsw(i+1) = (Fr_my(i) .* Rr_my(i) + Fh * Rh  + Fs * (Rsw(i)- Ds) - ...
+        sink(i) .* (Rsw(i)- Ds) - Rsw(i) .* (Fr_my(i) + Fh + Fs - sink(i)) ) ./ N(i) + Rsw(i);
+end
+
+figure;
+loglog(kpp,'linewidth',1.5,'color',[163 177 124]/255);
+hold on;
+xlabel('Time (yr)');
+ylabel('kp');
+set(gca,'linewidth',1.2,'FontSize',12);
+set(gcf, 'Position',  [100, 100, 560, 280]);
+xlim([1 1e7]);
+
+hold off;
+
+figure;
+
+plot(Rsw,'linewidth',1.5,'color',[120 120 120]/255);
+hold on;
+xlabel('Time (yr)');
+ylabel('Seawater \delta^{7}Li (‰)');
+set(gca,'linewidth',1.2,'FontSize',12);
+set(gcf, 'Position',  [100, 100, 560, 180]);
+xlim([1 1e7]);
+ylim([12 25]);
+hold off;
+
+figure;
+plot(Fr_my+Fs+Fh,'r','linewidth',1.5);
+hold on;
+plot(sink,'k','linewidth',1.2);
+xlabel('Time (yr)');
+ylabel('Flux (mol/y)');
+set(gca,'linewidth',1.2,'FontSize',12);
+set(gcf, 'Position',  [100, 100, 560, 280]);
+legend('Input','Output');
+
+hold off;
+
+figure;
+plot(Rr_my,'linewidth',1.5);
+hold on;
+%xlabel('Time (yr)');
+%ylabel('River \delta^{7}Li (‰)');
+set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]},'yticklabel',{[]});
+set(gcf, 'Position',  [100, 100, 560, 140]);
+xlim([1 1e6]);
+hold off;
