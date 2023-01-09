@@ -1,28 +1,26 @@
-%%%%% Xianyi Liu and Alex Krause, Jan of 2022 %%%%%
+%%%%% Xianyi Liu, Jan of 2022 %%%%%
 % Devonian weathering model %
 % Steady state box monte-carlo model incorporate Li and Sr isotopes %
 % Main forcing: Temp, Denudation, Plants %
 % Plnats increase weathering rate by 4 times and create thick regolith %
 % based on Kalderon Aesal 2021 code in python
 % and coupled West 2012, Rugustein 2019, Dellinger 2015, 2017
-% run on Matlab 2020a %
 clear; 
 clc;
 
 % time start and end (across devonian), in myrs
 time_start = 415;
 time_end = 365;
-
 % number of re-sampling
 monte = 1000;
 
 % re-arrange time
 t = linspace(1,415-365+1,51);
 
-% data load and fit curve load 
-data = readtable('carb_Summary.xlsx');
-data2 = readtable('nature supply data.xlsx');
-data3 = readtable('bulk.xlsx');
+% fit curve load (madeup, +3 permil from carb to sw)
+data = readtable('carb_Summary.xlsx'); % Table S1, brach carb d7Li
+data2 = readtable('nature supply data.xlsx'); % d7Li data from 
+data3 = readtable('bulk.xlsx'); % Table S2, bulk carbs
 iso = [data.d7Lis+3.6; data2.d7Li+4; data3.d7Lis+6.1];
 age = [data.Age; data2.age; data3.Age];
 age(find(isnan(iso))) = [];
@@ -32,14 +30,13 @@ age(isnan(age)) = [];
 iso_loess = smooth(age,iso,0.2,'rloess');
 [x1,ind] = sort(age);
 
-%test different smooth factor
+% test smoothing factor
 %{
 iso_loess2 = smooth(age,iso,0.1,'rloess');
 iso_loess3 = smooth(age,iso,0.3,'rloess');
 iso_loess4 = smooth(age,iso,0.2,'loess');
 %}
 
-%plot rLOESS curve with different smooth factor
 %{
 [x2,ind2] = sort(age);
 [x3,ind3] = sort(age);
@@ -68,11 +65,11 @@ late = iso(age < 385);
 [h,p] = ttest2(early, late);
 %}
 
-%plot Li data
+% plot d7Li data
 figure;
 errorbar(data.Age,data.d7Li,data.err,data.err,data.age_err,data.age_err,'o','color',[175 120 0]/255);
-ylabel('\delta^{7}Li / ‰');
-xlabel('Age / Ma')
+%ylabel('\delta^{7}Li / ‰');
+%xlabel('Age / Ma')
 hold on;
 data2 = readtable('nature supply data.xlsx');
 scatter(data2.age,data2.d7Li,'kd'); 
@@ -84,6 +81,7 @@ box on;
 xlim([360 420]);
 hold off;
 
+% plot LOESS curve and screened d7Li data
 figure;
 plot(x1,iso_loess(ind),'-','color',[120 120 120]/255,'Linewidth',2);
 hold on;
@@ -104,8 +102,9 @@ y2 = y1(ind2);
 fit_age = linspace(365,415,51);
 fit_Li = interp1(x2,y2,fit_age);
 
+
 %Sr curve import
-Sr_data = readtable('Sr_Devonian.xlsx');
+Sr_data = readtable('Sr_Devonian.xlsx'); % McAthur 2020
 iso_Sr = [Sr_data.Sr];
 age_Sr = [Sr_data.age];
 iso_loess_Sr = smooth(age_Sr,iso_Sr,0.2,'rloess');
@@ -160,13 +159,17 @@ f = NaN(length(t),monte);
 
 % Denudation and stuff, mainly from West 2012
 D_modern = 0.06 * 2500; % mm/yr, [0.04,0.08], Rugustein 2019, assume density = 2.5
-K = 5e-6 * 120 * 4e6 * 6 ; % from Ferrier and Kirchner 2008, silicate reaction rate, by year
-Kcl = 5e-8 * 2000 * 4e6 * 6 ; % from Ferrier and Kirchner 2008, clay reaction rate, by year
+K = 5e-6 * 120 * 4e6 * 5 ; % from Ferrier and Kirchner 2008, in y
+Kcl = 5e-8 * 2000 * 4e6 * 5; % from Ferrier and Kirchner 2008, in y
+kp = 4; % plants enhancing weathering rate
 Ea = 45.3*1000; % j/mol, silicate diss Ea
 Ea_c = 65*1000; % calcite dissolution Ea
-sig = -0.11; %  range -0.33 to 0.13
+sig = -0.17; %  range -0.33 to 0.13
 sig2 = 0.13; %  range -0.33 to 0.13
-q = 1; % precipitation 1000mm = 1m world average
+P = 1;% precipitation 1000mm = 1m world average
+w = 2.6;% modern-day Budyko Parameter
+Ep = 1; % evaporation + transipiration
+q = P - P .* (1 + Ep./P - (1 + (Ep./P).^w).^(1./w)); % run-off
 kw = 7.6e-5; % West 2012
 R = 8.314; % Gas const
 T0 = 288; % ambient temp, 15C
@@ -174,31 +177,28 @@ T = 287; % modern world avg temp
 kh = 1e5; % Gabbet and Mudd 2009
 phi = 2300; % Gabbet and Mudd 2009
 R_rock = 2;
-Fr0 = 1e10; %modern Li riverine input
+Fr0 = 1e10; %modern Li output
 Fr_modern = Fr0;
-k_Denudation = interp1([365; 380; 404; 415], [0.82; 0.67; 0.61; 1.07], fit_age); % from Berner 2001, Denudation rate to present
-%a = 4.5; b = 0.0575; Caves Rugustein 2019
+k_Denudation = interp1([365; 380; 404; 415], [0.82; 0.67; 0.61; 1.07], fit_age); % from Berner 2001, Denudation rate to present, Table S3
 
 % load degassing rate from Ben Mills 2017, from ridge/ subduction length
-Degas = readtable ('Degassing.xlsx');
+Degas = readtable ('Degassing.xlsx'); % Table S3
 k_degas = Degas.k;
 
 % calibrate Li riverine flux based on modern field study
 D_modern = 0.06 * 2500; % Denudation from Caves Rugestein 2019
-z_modern = 2500 .* log(D_modern ./ kh) ./ (-1*phi); % Gabbet and Mudd 2009
-%k = 0.38;
-Rc_modern = 1 - exp(-K * (1 - exp(-kw * q)) * exp(...
-    Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ (D_modern))^(sig + 1) ./ (sig + 1))); %West 2012
-Rccl_modern = 1 - exp(-Kcl * (1 - exp(-kw * q)) * exp(...
-    Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ D_modern).^(sig2 + 1) ./ (sig2 + 1))); %West 2012
-W_modern = Rc_modern .* D_modern ;
-Inten_modern = W_modern ./ D_modern;
-Wcl_modern = Rccl_modern .* D_modern;
+z_modern = 2500 .* log(D_modern ./ kh) ./ (-1*phi);
 
+Rc_modern = 1 - exp(-K * kp * (1 - exp(-kw * q)) * exp(...
+    Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ (D_modern))^(sig + 1) ./ (sig + 1))); % modern scenario, calculate W from D
+Rccl_modern = 1 - exp(-Kcl * kp * (1 - exp(-kw * q)) * exp(...
+    Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ D_modern).^(sig2 + 1) ./ (sig2 + 1)));% modern scenario, calculate W from D (clay mineral diss)
+W_modern = Rc_modern .* D_modern ;
+Inten_modern = W_modern ./ D_modern; % WI
+Wcl_modern = Rccl_modern .* D_modern;
 f0 = 0.05 * (Inten_modern .^-0.47); % from Dellinger 2015
-k_Li = Fr_modern ./ (W_modern .* f0 + Wcl_modern); %scaling factor to link Li weathering flux and E
-%W_Li = 0.0334 *D_modern.^0.6706;
-%k_Li = Fr0 ./W_Li;
+k_Li = Fr_modern ./ (W_modern .* f0 + Wcl_modern); %scaling factor to link Li weathering flux and E, mainly incorporates Li concs in crust & land area
+
 
 % calibrate Sr flux, Yobo 2019 and Lenton 2018
 Sr_carb_modern = 17e9;
@@ -214,13 +214,13 @@ Fh_Sr = 7.9e9; % Lenton 2018
 Fd_Sr = 5.5e9;
 
 % import T data from Scotese et al., 2021 ESR
-T_table = readtable('temp.xlsx');
+T_table = readtable('temp.xlsx'); %Table S3
 T = T_table.temp_K;
-alpha = 1.8 * 1e6./(T.^2); % fractioantion dependence of temp,  Li and West 2014
-alpha2 = 1.8 * 1e6./(T.^2); 
+%alpha = 1.8 * 1e6./(T.^2); % fractioantion dependence of temp,  Li and West 2014
+
 
 % temperature and runoff
-q = 1 * (1 + 0.038 *(T - 287)); % from Probst and Tardy, 1989
+%P = 1 * (1 + 0.038 *(T - 287)); % from Probst and Tardy, 1989
 
 % model initilization 
 for i = 1:length(t)
@@ -232,34 +232,37 @@ for i = 1:length(t)
         
         %Forcing (Denudation & Regolith thickness)
         D(i,j) = k_Denudation(i) .* 2500 * unifrnd(0.04,0.08); % present-day value
-        x(i,j) = unifrnd(-3,1); % makes sure unifrnd can sample the lowerend
+        x(i,j) = unifrnd(-2,1); % makes sure unifrnd can sample the lowerend
         z(i,j) = 10.^x(i,j); % weathering profile thickness
-        
+        %z(i,j) = 2500 .* log(D(i,j) ./ kh) ./ (-1*phi); % Gabbet and Mudd 2009
         %Temperature uncertainty
-        T(i,j) = unifrnd(T(i)-1.4,T(i)+1.4);
-        
-        Rc(i,j) = 1 - exp(-K * kp(i,j) * (1 - exp(-kw * q(i))) * exp(...
+        T(i,j) = unifrnd(T(i)-1.8,T(i)+1.8);
+        P(i,j) = 1 * (1 + 0.038 *(T(i,j) - 287));  %precipitation
+        w(i,j) = unifrnd(1.5,2.6); % plants influence on infiltration
+        q(i,j) = P(i) - P(i) .* (1 + Ep./P(i,j) - (1 + (Ep./P(i,j)).^w(i,j)).^(1./w(i,j))); % run-off
+        Rc(i,j) = 1 - exp(-K * kp(i,j) * (1 - exp(-kw * q(i,j))) * exp(...
         Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j))^(sig + 1) ./ (sig + 1))); % Silicate weathering, West 2012
-        Rccl(i,j) = 1 - exp(-Kcl * kp(i,j) * (1 - exp(-kw * q(i))) * exp(...
+        Rccl(i,j) = 1 - exp(-Kcl * kp(i,j) * (1 - exp(-kw * q(i,j))) * exp(...
         Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j)).^(sig2 + 1) ./ (sig2 + 1))); % secondary silicate mienral dissolution
         
         %Li input
         Inten(i,j) = Rc(i,j); %weathering intensity assignment
-
         f(i,j) = 0.05 .* (Inten(i,j).^-0.47); % from Dellinger 2015
         if f(i,j) > 1 
            f(i,j) = 1;
         else
            f(i,j) = 0.05 .* (Inten(i,j).^-0.47);
         end
+        alpha(i,j) = 1.8 * 1e6./(T(i,j).^2);
         W(i,j) = D(i,j) .* Rc(i,j); % primary rocks weathering rate
         Wcl(i,j) = D(i,j) .* Rccl(i,j); % dissolution from secondary minerals;
         Fr_dis(i,j) = W(i,j) .* k_Li; %scale withc onstant k_Li
         Fr_p(i,j) = Fr_dis(i,j) .* f(i,j); % fit the Li flux with Dellinger 2015, weathering rate of Li after removal
         Fr_cl(i,j) = Wcl(i,j) .* k_Li; % do not consider minerals precipitation from secondary mineral dissolution
         Fr(i,j) = Fr_p(i,j) + Fr_cl(i,j); % riverine Li flux
+        %alpha(i,j) = unifrnd(alpha(i)-5,alpha(i)-5);
         Rr_r(i,j) = R_rock - alpha(i) .* log(f(i,j)); % fluid d7Li evolved following Rayleigh;
-        Rr_b(i,j) = R_rock + alpha2(i) .* (1-f(i,j)); % fluid d7Li evolve following Batch;
+        Rr_b(i,j) = R_rock + alpha(i) .* (1-f(i,j)); % fluid d7Li evolve following Batch;
         Rcl(i,j) = R_rock - 2 - 10 * Inten(i,j); % seconday mineral d7Li, from Dellinger 2017
         Rr_p(i,j) = Rr_r(i,j) .* (1 - Inten(i,j)) + Rr_b(i,j) .* Inten(i,j); % high intensity follow batch, low intensity follow rayleigh
         Rr(i,j) = Rcl(i,j) .* Fr_cl(i,j) ./(Fr_p(i,j) + Fr_cl(i,j)) + Rr_p(i,j) .* Fr_p(i,j) ./(Fr_p(i,j) + Fr_cl(i,j)); % mixing between pri and sec minerals
@@ -269,7 +272,6 @@ for i = 1:length(t)
         Dsink(i,j) = unifrnd(1,10); % Delta of sink, do not distinguish maac and aoc
         Fs(i,j) = k_degas(i) .* unifrnd(5e9,7e9); % Misra 2012 subduction reflux
         Rs(i,j) = fit_Li(i) - Dsink(i,j); % subduction R = seawater - D
-        %Dsink (i,j) = 3.7892 * log(z(i,j)) + 6.2357; % assume D links to weathering profile depth
         
         % Li mass balance, assume steady state, Li residence time = 1Ma
         total_flux (i,j) = Fr(i,j) + Fh(i,j) + Fs(i,j); % mass balance
@@ -277,7 +279,7 @@ for i = 1:length(t)
               Dsink (i,j);   % isotopic balance
         
         %Sr Input 
-        Rc_carb(i) = 1 - exp(-Kcarb * kp(i,j) * (1 - exp(-kw * q(i))) * exp(...
+        Rc_carb(i) = 1 - exp(-Kcarb * kp(i,j) * (1 - exp(-kw * q(i,j))) * exp(...
         Ea_c ./ (R * T0) - Ea_c ./ (R * T(i)))); % carbonate weathering Sr
         Sr_sil(i,j) = D(i,j) .* Rc(i,j) .* k_Sr_sil;
         Sr_carb(i,j) = D(i,j) .* Rc_carb(i) .* k_Sr_carb; % silicate weathering Sr
@@ -318,7 +320,7 @@ for i = 1:length(t)
             Sr_carb_result (i,j) = Sr_carb(i,j);
             Fr_Sr_result(i,j) = Fr_Sr(i,j);
             Rr_Sr_result(i,j) = Rr_Sr(i,j);
-            
+            w_result (i,j) = w(i,j);
         else
             Li_sw_result(i,j) = nan;
             Fr_result(i,j) = nan;
@@ -335,13 +337,14 @@ for i = 1:length(t)
             Fr_Sr_result(i,j) = nan;
             Rr_Sr_result(i,j) = nan;
             kp_result(i,j) = nan;
-
+            w_result (i,j) = nan;
+             
         end
 
     end
 end
     
-% plot   
+% data plot   
 figure;
 plot (fit_age, Li_sw_result,'.r','MarkerSize',12);
 hold on;
@@ -465,6 +468,17 @@ ylabel('kp');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
 set(gcf, 'Position',  [100, 100, 560, 200]);
 hold off;
+
+figure;
+plot(fit_age, w_result,'r.','MarkerSize',12);
+hold on;
+plot(fit_age,mean(w_result,2,'omitnan'),'k','linewidth',1.5);
+%xlabel('Age / Ma');
+ylabel('w');
+set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
+set(gcf, 'Position',  [100, 100, 560, 200]);
+hold off;
+
 
 figure;
 plot(fit_age,Fr_Sr_result,'r.','MarkerSize',12);
