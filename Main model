@@ -236,7 +236,7 @@ for i = 1:length(t)
         z(i,j) = 10.^x(i,j); % weathering profile thickness
         %z(i,j) = 2500 .* log(D(i,j) ./ kh) ./ (-1*phi); % Gabbet and Mudd 2009
         %Temperature uncertainty
-        T(i,j) = unifrnd(T(i)-1.8,T(i)+1.8);
+        T(i,j) = unifrnd(T(i)-2,T(i)+2);
         P(i,j) = 1 * (1 + 0.038 *(T(i,j) - 287));  %precipitation
         w(i,j) = unifrnd(1.5,2.6); % plants influence on infiltration
         q(i,j) = P(i) - P(i) .* (1 + Ep./P(i,j) - (1 + (Ep./P(i,j)).^w(i,j)).^(1./w(i,j))); % run-off
