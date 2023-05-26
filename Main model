@@ -189,10 +189,13 @@ k_degas = Degas.k;
 D_modern = 0.06 * 2500; % Denudation from Caves Rugestein 2019
 z_modern = 2500 .* log(D_modern ./ kh) ./ (-1*phi);
 
-Rc_modern = 1 - exp(-K * kp * (1 - exp(-kw * q)) * exp(...
+Rc_modern = 1 - exp(-K ./ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4 * kp * (1 - exp(-kw * q)) * exp(...
     Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ (D_modern))^(sig + 1) ./ (sig + 1))); % modern scenario, calculate W from D
-Rccl_modern = 1 - exp(-Kcl * kp * (1 - exp(-kw * q)) * exp(...
+Rccl_modern = 1 - exp(-Kcl ./ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4 * kp * (1 - exp(-kw * q)) * exp(...
     Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ D_modern).^(sig2 + 1) ./ (sig2 + 1)));% modern scenario, calculate W from D (clay mineral diss)
+% the term './ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4' is to consider the 'freshness' of the minerals in regolith in the main model (root penetration) 
+% In other sensitivity test model, as the regolith is estimated based on D and climate and fit the modern regolith data which already involve the 'freshness' 
+% of regolith, we do not involve this term.
 W_modern = Rc_modern .* D_modern ;
 Inten_modern = W_modern ./ D_modern; % WI
 Wcl_modern = Rccl_modern .* D_modern;
@@ -382,7 +385,7 @@ hold off;
 figure;
 plot (fit_age, Fr_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Fr_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Fr_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Riverine Li flux (mol/y)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -392,7 +395,7 @@ hold off;
 figure;
 plot (fit_age, Rr_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Rr_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Rr_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Riverine \delta^{7}Li (‰)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -402,7 +405,7 @@ hold off;
 figure;
 plot (fit_age, Dsink_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Dsink_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Dsink_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('\Delta^{7}Li (seawater-sink) (‰)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -432,7 +435,7 @@ hold off;
 figure;
 semilogy(fit_age, z_result,'r.','MarkerSize',12);
 hold on;
-semilogy(fit_age,mean(z_result,2,'omitnan'),'k','linewidth',1.5);
+semilogy(fit_age,median(z_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Regolith thickness (t/m)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -442,7 +445,7 @@ hold off;
 figure;
 semilogy(fit_age,Inten_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Inten_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Inten_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Weathering intensity');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -452,7 +455,7 @@ hold off;
 figure;
 plot(fit_age, f_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(f_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(f_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Weathering congruency');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -462,7 +465,7 @@ hold off;
 figure;
 plot(fit_age, kp_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(kp_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(kp_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('kp');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -472,7 +475,7 @@ hold off;
 figure;
 plot(fit_age, w_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(w_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(w_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('w');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -483,7 +486,7 @@ hold off;
 figure;
 plot(fit_age,Fr_Sr_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Fr_Sr_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Fr_Sr_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Sr riverine flux (mol/y)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -493,7 +496,7 @@ hold off;
 figure;
 plot(fit_age,Rr_Sr_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Rr_Sr_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Rr_Sr_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Riverine ^{87}Sr/^{86}Sr');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -503,7 +506,7 @@ hold off;
 figure;
 plot(fit_age,Sr_sil_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Sr_sil_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Sr_sil_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Sr Silicate weathering (mol/y)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
@@ -513,7 +516,7 @@ hold off;
 figure;
 plot(fit_age,Sr_carb_result,'r.','MarkerSize',12);
 hold on;
-plot(fit_age,mean(Sr_carb_result,2,'omitnan'),'k','linewidth',1.5);
+plot(fit_age,median(Sr_carb_result,2,'omitnan'),'k','linewidth',1.5);
 %xlabel('Age / Ma');
 ylabel('Sr Carbonate weathering / mol/y');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
