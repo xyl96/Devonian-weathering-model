@@ -189,13 +189,11 @@ k_degas = Degas.k;
 D_modern = 0.06 * 2500; % Denudation from Caves Rugestein 2019
 z_modern = 2500 .* log(D_modern ./ kh) ./ (-1*phi);
 
-Rc_modern = 1 - exp(-K ./ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4 * kp * (1 - exp(-kw * q)) * exp(...
+Rc_modern = 1 - exp(-K * kp * (1 - exp(-kw * q)) * exp(...
     Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ (D_modern))^(sig + 1) ./ (sig + 1))); % modern scenario, calculate W from D
-Rccl_modern = 1 - exp(-Kcl ./ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4 * kp * (1 - exp(-kw * q)) * exp(...
+Rccl_modern = 1 - exp(-Kcl * kp * (1 - exp(-kw * q)) * exp(...
     Ea ./ (R * T0) - Ea ./ (R * T)) * ((z_modern ./ D_modern).^(sig2 + 1) ./ (sig2 + 1)));% modern scenario, calculate W from D (clay mineral diss)
-% the term './ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4' is to consider the 'freshness' of the minerals in regolith in the main model (root penetration) 
-% In other sensitivity test model, as the regolith is estimated based on D and climate and fit the modern regolith data which already involve the 'freshness' 
-% of regolith, we do not involve this term.
+
 W_modern = Rc_modern .* D_modern ;
 Inten_modern = W_modern ./ D_modern; % WI
 Wcl_modern = Rccl_modern .* D_modern;
@@ -243,11 +241,13 @@ for i = 1:length(t)
         P(i,j) = 1 * (1 + 0.038 *(T(i,j) - 287));  %precipitation
         w(i,j) = unifrnd(1.5,2.6); % plants influence on infiltration
         q(i,j) = P(i) - P(i) .* (1 + Ep./P(i,j) - (1 + (Ep./P(i,j)).^w(i,j)).^(1./w(i,j))); % run-off
-        Rc(i,j) = 1 - exp(-K * kp(i,j) * (1 - exp(-kw * q(i,j))) * exp(...
+        Rc(i,j) = 1 - exp(-K ./ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4 * kp(i,j) * (1 - exp(-kw * q(i,j))) * exp(...
         Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j))^(sig + 1) ./ (sig + 1))); % Silicate weathering, West 2012
-        Rccl(i,j) = 1 - exp(-Kcl * kp(i,j) * (1 - exp(-kw * q(i,j))) * exp(...
+        Rccl(i,j) = 1 - exp(-Kcl ./ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4 * kp(i,j) * (1 - exp(-kw * q(i,j))) * exp(...
         Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j)).^(sig2 + 1) ./ (sig2 + 1))); % secondary silicate mienral dissolution
-        
+        % the term './ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4' is to consider the 'freshness' of the minerals in regolith in the main model (root penetration) 
+        % In other sensitivity test model, as the regolith is estimated based on D and climate and fit the modern regolith data which already involve the 'freshness' 
+        % of regolith, we do not involve this term.
         %Li input
         Inten(i,j) = Rc(i,j); %weathering intensity assignment
         f(i,j) = 0.05 .* (Inten(i,j).^-0.47); % from Dellinger 2015
