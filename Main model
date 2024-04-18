@@ -31,20 +31,18 @@ iso_loess = smooth(age,iso,0.2,'rloess');
 [x1,ind] = sort(age);
 
 % test smoothing factor
-%{
+
 iso_loess2 = smooth(age,iso,0.1,'rloess');
 iso_loess3 = smooth(age,iso,0.3,'rloess');
 iso_loess4 = smooth(age,iso,0.2,'loess');
-%}
 
-%{
 [x2,ind2] = sort(age);
 [x3,ind3] = sort(age);
 [x4,ind4] = sort(age);
 figure;
-plot(x1,iso_loess(ind),'-','Linewidth',2);
+plot(x1,iso_loess2(ind),'-','Linewidth',2);
 hold on;
-plot(x2,iso_loess2(ind2),'-','Linewidth',2);
+plot(x2,iso_loess(ind2),'-','Linewidth',2);
 plot(x3,iso_loess3(ind3),'-','Linewidth',2);
 plot(x4,iso_loess4(ind4),'-','Linewidth',2);
 scatter(data.Age,data.d7Lis+3.6,'ok');
@@ -55,18 +53,19 @@ scatter(data2.age,data2.d7Li+4,'kd');
 scatter(data3.Age,data3.d7Lis+6.1,'sk');
 %result = cftool(age,iso);
 set(gca,'linewidth',1.2,'FontSize',12);%,'yticklabel',{[]}
-legend('rloess:0.2','rloess:0.1','rloess:0.3','loess:0.2');
+legend('rloess:0.1','rloess:0.2','rloess:0.3','loess:0.2');
 set(gcf, 'Position',  [100, 100, 560, 280]);
 set(gca, 'xdir', 'reverse');
+set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]});
 box on;
 hold off;
 early = iso(age > 385);
 late = iso(age < 385);
 [h,p] = ttest2(early, late);
-%}
+
 
 % plot d7Li data
-%{
+
 figure;
 errorbar(data.Age,data.d7Li,data.err,data.err,data.age_err,data.age_err,'o','color',[175 120 0]/255);
 %ylabel('\delta^{7}Li / ‰');
@@ -81,9 +80,9 @@ set(gcf, 'Position',  [100, 100, 560, 180]);
 box on;
 xlim([360 420]);
 hold off;
-%}
+
 % plot LOESS curve and screened d7Li data
-%{
+
 figure;
 plot(x1,iso_loess(ind),'-','color',[120 120 120]/255,'Linewidth',2);
 hold on;
@@ -98,7 +97,6 @@ set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]});
 set(gcf, 'Position',  [100, 100, 560, 180]);
 xlim([360 420]);
 hold off;
-%}
 
 y1 = iso_loess(ind);
 [x2,ind2] = unique(x1);
@@ -106,33 +104,6 @@ y2 = y1(ind2);
 fit_age = linspace(365,415,51);
 fit_Li = interp1(x2,y2,fit_age);
 
-%Sr curve import
-Sr_data = readtable('Sr_Devonian.xlsx'); % McAthur 2020
-iso_Sr = [Sr_data.Sr];
-age_Sr = [Sr_data.age];
-iso_loess_Sr = smooth(age_Sr,iso_Sr,0.2,'rloess');
-[x1_Sr,ind_Sr] = sort(age_Sr);
-y1_Sr = iso_loess_Sr(ind_Sr);
-[x2_Sr,ind2_Sr] = unique(x1_Sr);
-y2_Sr = y1_Sr(ind2_Sr);
-fit_age_Sr = linspace(365,415,51);
-fit_Sr = interp1(x2_Sr,y2_Sr,fit_age_Sr);
-fit_Sr_upp = fit_Sr + 1e-4;
-fit_Sr_low = fit_Sr - 1e-4;
-
-%plot Sr data
-%{
-figure;
-plot(x1_Sr,iso_loess_Sr(ind_Sr),'-','color',[150 50 50]/255,'Linewidth',2);
-hold on;
-plot(Sr_data.age,Sr_data.Sr,'o','color',[200 200 200]/255);
-xlabel('Age / Ma');
-ylabel('^{87}Sr/^{86}Sr');
-set(gca,'linewidth',1.2,'FontSize',12);
-%legend('LOESS curve','Previous studies');
-set(gcf, 'Position',  [100, 100, 560, 180]);
-hold off;
-%}
 %interpolate curve(don't need here)
 
 % upper and lower limit (give uncertainty)
@@ -207,19 +178,6 @@ f0 = 0.05 * (Inten_modern .^-0.47); % from Dellinger 2015
 k_Li = Fr_modern ./ (W_modern .* f0 + Wcl_modern); % scaling factor to link Li weathering flux and E, mainly incorporates Li concs in crust & land area
 
 
-% calibrate Sr flux, Yobo 2019 and Lenton 2018
-Sr_carb_modern = 17e9;
-Sr_sil_modern = 13e9;
-Kcarb = 5e-6 * 10 * 12e7 ; 
-Reaction_carb = 1 - exp(-Kcarb * (1 - exp(-kw * q)) * exp(...
-    Ea_c ./ (R * T0) - Ea_c ./ (R * T))); % the reaction of carbonate is not dependant on regolith thickness
-W_modern_carb = D_modern * Reaction_carb;
-W_modern_sil = D_modern * Rc_modern;
-k_Sr_carb = Sr_carb_modern ./ W_modern_carb;
-k_Sr_sil = Sr_sil_modern ./ W_modern_sil;
-Fh_Sr = 7.9e9; % Lenton 2018
-Fd_Sr = 5.5e9;
-
 % import T data from Scotese et al., 2021 ESR
 T_table = readtable('temp.xlsx'); % Table S3
 T = T_table.temp_K;
@@ -244,15 +202,12 @@ for i = 1:length(t)
         %Temperature uncertainty
         T(i,j) = unifrnd(T(i)-2,T(i)+2);
         P(i,j) = 1 * (1 + 0.038 *(T(i,j) - 287));  %precipitation
-        w = 2.6; % plants influence on infiltration
         q(i,j) = P(i,j) .* r_off_rate; % run-off
         Rc(i,j) = 1 - exp(-K .* exp(-z(i,j) ./ 2.5/2.75) * (1 - exp(-kw * q(i,j))) * exp(...
         Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j))^(sig + 1) ./ (sig + 1))); % Silicate weathering, West 2012
         Rccl(i,j) = 1 - exp(-Kcl .* exp(-z(i,j) ./ 2.5/2.75) * (1 - exp(-kw * q(i,j))) * exp(...
         Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j)).^(sig2 + 1) ./ (sig2 + 1))); % secondary silicate mienral dissolution
-        % the term './ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4' is to consider the 'freshness' of the minerals in regolith in the main model (root penetration) 
-        % In other sensitivity test model, as the regolith is estimated based on D and climate and fit the modern regolith data which already involve the 'freshness' 
-        % of regolith, we do not involve this term.
+        
         %Li input
         Inten(i,j) = Rc(i,j); %weathering intensity assignment
         f(i,j) = 0.05 .* (Inten(i,j).^-0.47); % from Dellinger 2015
@@ -441,7 +396,5 @@ ylabel('Denudeation (mm/y)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
 set(gcf, 'Position',  [100, 100, 560, 200]);
 hold off;
-
-
 
 
