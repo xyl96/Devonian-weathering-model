@@ -174,7 +174,8 @@ sig2 = -0.06; %  range -0.33 to 0.13
 P = 1; % precipitation 1000mm = 1m world average
 w = 2.6; % modern-day Budyko Parameter
 Ep = 1; % evaporation + transipiration
-q = P - P .* (1 + Ep./P - (1 + (Ep./P).^w).^(1./w)); % run-off
+q = P - P .* (1 + Ep./P - (1 + (Ep./P).^w).^(1./w)); % run-off based on modern data by following Ibarra 2019.
+r_off_rate = q/P;
 kw = 7.6e-5; % West 2012
 R = 8.314; % Gas const
 T0 = 288; % ambient temp, 15C
@@ -239,17 +240,16 @@ for i = 1:length(t)
         D(i,j) = k_Denudation(i) .* 2500 * unifrnd(0.04,0.08); % present-day value
         x(i,j) = unifrnd(-2,1.5); % makes sure unifrnd can sample the lowerend
         z(i,j) = 10.^x(i,j); % weathering profile thickness
-        %z(i,j) = 2500 .* log(D(i,j) ./ kh) ./ (-1*phi);
-        z_r(i,j) = z(i,j) .* exp(-z(i,j) ./ 2.5/2.75);
+
         %Temperature uncertainty
         T(i,j) = unifrnd(T(i)-2,T(i)+2);
         P(i,j) = 1 * (1 + 0.038 *(T(i,j) - 287));  %precipitation
         w = 2.6; % plants influence on infiltration
-        q(i,j) = P(i,j) - P(i,j) .* (1 + Ep./P(i,j) - (1 + (Ep./P(i,j)).^w).^(1./w)); % run-off
-        Rc(i,j) = 1 - exp(-K * (1 - exp(-kw * q(i,j))) * exp(...
-        Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z_r(i,j) ./ D(i,j))^(sig + 1) ./ (sig + 1))); % Silicate weathering, West 2012
-        Rccl(i,j) = 1 - exp(-Kcl * (1 - exp(-kw * q(i,j))) * exp(...
-        Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z_r(i,j) ./ D(i,j)).^(sig2 + 1) ./ (sig2 + 1))); % secondary silicate mienral dissolution
+        q(i,j) = P(i,j) .* r_off_rate; % run-off
+        Rc(i,j) = 1 - exp(-K .* exp(-z(i,j) ./ 2.5/2.75) * (1 - exp(-kw * q(i,j))) * exp(...
+        Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j))^(sig + 1) ./ (sig + 1))); % Silicate weathering, West 2012
+        Rccl(i,j) = 1 - exp(-Kcl .* exp(-z(i,j) ./ 2.5/2.75) * (1 - exp(-kw * q(i,j))) * exp(...
+        Ea ./ (R * T0) - Ea ./ (R * T(i,j))) * ((z(i,j) ./ D(i,j)).^(sig2 + 1) ./ (sig2 + 1))); % secondary silicate mienral dissolution
         % the term './ (exp(z_modern/2)).^-0.4 .* (exp(z(i,j)/2)).^-0.4' is to consider the 'freshness' of the minerals in regolith in the main model (root penetration) 
         % In other sensitivity test model, as the regolith is estimated based on D and climate and fit the modern regolith data which already involve the 'freshness' 
         % of regolith, we do not involve this term.
@@ -287,27 +287,7 @@ for i = 1:length(t)
         total_flux (i,j) = Fr(i,j) + Fh(i,j) + Fs(i,j); % mass balance
         Li_sw(i,j) = (Fr(i,j) .* Rr(i,j) + Fh(i,j) * Rh(i,j) + Rs(i,j) .* Fs(i,j)) ./ total_flux (i,j) + ...
               Dsink (i,j);   % isotopic balance
-        
-        %Sr Input 
-        % Rc_carb(i) = 1 - exp(-Kcarb * (1 - exp(-kw * q(i,j))) * exp(...
-        % Ea_c ./ (R * T0) - Ea_c ./ (R * T(i)))); % carbonate weathering Sr
-        % Sr_sil(i,j) = D(i,j) .* Rc(i,j) .* k_Sr_sil;
-        % Sr_carb(i,j) = D(i,j) .* Rc_carb(i) .* k_Sr_carb; % silicate weathering Sr
-        % Fr_Sr(i,j) = Sr_sil(i,j) + Sr_carb(i,j); % total Sr riverine influx 
-        % Fh_Sr(i,j) = k_degas(i) .* unifrnd(5e9,7e9); % hydrothermal Sr input
-        % F_Sr_total(i,j) = Fh_Sr(i,j) + Fr_Sr(i,j) + Fd_Sr; % total Sr input
-        % t(i) = 4.5e9 - 365*1e6 + i*1e5; % Radiogenic decay
-        % lamda = 1.4e-11; % decay const fro Sr, from Lenton 2018
-        % Rr_sil(i) = unifrnd(0.7,0.720); % Silicate input RSr, granite and basalt
-        % Rr_carb(i,j) = unifrnd(0.707,0.7092); % carbonate watehgin from most recent 250 Ma, values from Shileds 2007
-        % Rr_Sr(i,j) = Rr_sil(i) .* Sr_sil(i,j)./ Fr_Sr(i,j) + Rr_carb(i,j) .* Sr_carb(i,j)./ Fr_Sr(i,j); % input RSr 
-        % Rh_Sr(i) = 0.69898 + 0.066 * (1 - exp(-lamda * t(i))); % hydrothermal input
-        % Rd_Sr(i,j) = fit_Sr(i); % diagenesis RSr
-        % Fd_Sr = 5.5e9; % diagensis FSr
-        % 
-        % %Sr balance, assume steady state, Sr residence time = 1.4 Ma
-        % Rsw_Sr(i,j) = (Fr_Sr(i,j) .* Rr_Sr(i,j) + Fh_Sr(i,j) .* Rh_Sr(i) + Fd_Sr .* Rd_Sr(i,j)) ./ F_Sr_total(i,j);        
-         
+
         % exclude data that are not in the range
         
         if (Li_sw (i,j) <= fit_Li_upp(i)) && (Li_sw (i,j) >= fit_Li_low(i)) %...
@@ -321,15 +301,8 @@ for i = 1:length(t)
             z_result (i,j) = z(i,j);
             D_result(i,j) = D(i,j);
             f_result(i,j) = f(i,j);
-            %kp_result(i,j) = kp(i,j);
-            % Sr data output
             D_result(i,j) = D(i,j);
-            % Rsw_Sr_result(i,j) = Rsw_Sr(i,j);
-            % Sr_sil_result (i,j) = Sr_sil(i,j);
-            % Sr_carb_result (i,j) = Sr_carb(i,j);
-            % Fr_Sr_result(i,j) = Fr_Sr(i,j);
-            % Rr_Sr_result(i,j) = Rr_Sr(i,j);
-            %w_result (i,j) = w(i,j);
+
         else
             Li_sw_result(i,j) = nan;
             Fr_result(i,j) = nan;
@@ -339,14 +312,6 @@ for i = 1:length(t)
             Dmaac_result(i,j) = nan;
             Inten_result(i,j) = nan;
             z_result (i,j) = nan;
-            D_result(i,j) = nan;            
-            % Rsw_Sr_result(i,j) = nan;
-            % Sr_sil_result (i,j) = nan;
-            % Sr_carb_result (i,j) = nan;
-            % Fr_Sr_result(i,j) = nan;
-            % Rr_Sr_result(i,j) = nan;
-            %kp_result(i,j) = nan;
-            %w_result (i,j) = nan;
              
         end
 
@@ -476,66 +441,7 @@ ylabel('Denudeation (mm/y)');
 set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
 set(gcf, 'Position',  [100, 100, 560, 200]);
 hold off;
-%{
-figure;
-plot(fit_age, kp_result,'r.','MarkerSize',12);
-hold on;
-plot(fit_age,median(kp_result,2,'omitnan'),'k','linewidth',1.5);
-%xlabel('Age / Ma');
-ylabel('kp');
-set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
-set(gcf, 'Position',  [100, 100, 560, 200]);
-hold off;
-
-figure;
-plot(fit_age, w_result,'r.','MarkerSize',12);
-hold on;
-plot(fit_age,median(w_result,2,'omitnan'),'k','linewidth',1.5);
-%xlabel('Age / Ma');
-ylabel('w');
-set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
-set(gcf, 'Position',  [100, 100, 560, 200]);
-hold off;
 
 
 
-subplot(2,1,1);
-plot(fit_age,Fr_Sr_result,'r.','MarkerSize',12);
-hold on;
-plot(fit_age,median(Fr_Sr_result,2,'omitnan'),'k','linewidth',1.5);
-%xlabel('Age / Ma');
-ylabel('Sr riverine flux (mol/y)');
-set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
-set(gcf, 'Position',  [100, 100, 560, 200]);
-hold off;
-
-subplot(2,1,2);
-plot(fit_age,Rr_Sr_result,'r.','MarkerSize',12);
-hold on;
-plot(fit_age,median(Rr_Sr_result,2,'omitnan'),'k','linewidth',1.5);
-%xlabel('Age / Ma');
-ylabel('Riverine ^{87}Sr/^{86}Sr');
-set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
-set(gcf, 'Position',  [100, 100, 560, 200]);
-hold off;
-%}
-figure;
-plot(fit_age,Sr_sil_result,'r.','MarkerSize',12);
-hold on;
-plot(fit_age,median(Sr_sil_result,2,'omitnan'),'k','linewidth',1.5);
-%xlabel('Age / Ma');
-ylabel('Sr Silicate weathering (mol/y)');
-set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
-set(gcf, 'Position',  [100, 100, 560, 200]);
-hold off;
-
-figure;
-plot(fit_age,Sr_carb_result,'r.','MarkerSize',12);
-hold on;
-plot(fit_age,median(Sr_carb_result,2,'omitnan'),'k','linewidth',1.5);
-%xlabel('Age / Ma');
-ylabel('Sr Carbonate weathering / mol/y');
-set(gca,'linewidth',1.2,'FontSize',12,'xticklabel',{[]}, 'xdir', 'reverse');
-set(gcf, 'Position',  [100, 100, 560, 200]);
-hold off;
 
